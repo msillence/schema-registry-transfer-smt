@@ -30,3 +30,4 @@ dependency-reduced-pom.xml
 .classpath
 .project
 .settings/
+release.properties
