@@ -28,6 +28,7 @@ import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.kafka.schemaregistry.ParsedSchema;
 import io.confluent.kafka.schemaregistry.avro.AvroSchema;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
@@ -250,7 +251,8 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 				try {
 					log.trace("Looking up schema id {} in source registry", sourceSchemaId);
 					// Can't do getBySubjectAndId because that requires a Schema object for the strategy
-					schemaAndDestId.schema = sourceSchemaRegistryClient.getById(sourceSchemaId);
+					ParsedSchema schema = sourceSchemaRegistryClient.getSchemaById(sourceSchemaId);
+					schemaAndDestId.schema = schemaAndDestId.schema = schema instanceof AvroSchema ? ((AvroSchema) schema).rawSchema() : null;
 				} catch (IOException | RestClientException e) {
 					final String msg = e.getMessage();
 					log.warn("message was {}", msg);

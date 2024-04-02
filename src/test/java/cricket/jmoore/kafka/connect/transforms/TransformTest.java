@@ -1,11 +1,17 @@
 /* Licensed under Apache-2.0 */
 package cricket.jmoore.kafka.connect.transforms;
 
-import static cricket.jmoore.kafka.connect.transforms.SchemaRegistryTransfer.ConfigName;
 import static org.apache.avro.Schema.Type.BOOLEAN;
 import static org.apache.avro.Schema.Type.INT;
 import static org.apache.avro.Schema.Type.STRING;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -40,6 +46,8 @@ import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.serializers.NonRecordContainer;
+
+import cricket.jmoore.kafka.connect.transforms.SchemaRegistryTransfer.ConfigName;
 
 @SuppressWarnings("unchecked")
 public class TransformTest {
@@ -317,7 +325,7 @@ public class TransformTest {
     @Test
     @Tag(Constants.USE_BASIC_AUTH_SOURCE_TAG)
     public void testSourceBasicHttpAuthNull() throws IOException {
-        configure(Constants.HTTP_AUTH_SOURCE_CREDENTIALS_FIXTURE, null, ExplicitAuthType.NULL);
+       configure(Constants.HTTP_AUTH_SOURCE_CREDENTIALS_FIXTURE, null, ExplicitAuthType.NULL);
 
        assertThrows(ConnectException.class, () -> this.passSimpleMessage());
     }

@@ -1,6 +1,7 @@
 /* Licensed under Apache-2.0 */
 package cricket.jmoore.kafka.connect.transforms;
 
+
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.extension.ResponseDefinitionTransformerV2;
 import com.github.tomakehurst.wiremock.http.Request;
@@ -108,7 +110,7 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
     private final AutoRegistrationHandler autoRegistrationHandler = new AutoRegistrationHandler();
     private final GetConfigHandler getConfigHandler = new GetConfigHandler();
     private final WireMockServer mockSchemaRegistry = new WireMockServer(
-            WireMockConfiguration.wireMockConfig().dynamicPort().extensions(
+            WireMockConfiguration.wireMockConfig().notifier(new ConsoleNotifier(true)).dynamicPort().extensions(
                     this.autoRegistrationHandler, this.listVersionsHandler, this.getVersionHandler,
                     this.getConfigHandler));
     private final SchemaRegistryClient schemaRegistryClient = new MockSchemaRegistryClient();
@@ -167,9 +169,10 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
     private int register(final String subject, final Schema schema) {
         try {
             final int id = this.schemaRegistryClient.register(subject, new AvroSchema(schema));
-            this.stubFor.apply(WireMock.get(WireMock.urlEqualTo(SCHEMA_BY_ID_PATTERN + id))
+            // client upgrades appends ?fetchMaxId=false and then &subject= to the url
+            this.stubFor.apply(WireMock.get(WireMock.urlMatching(String.format("%s%d[^0-9]*", SCHEMA_BY_ID_PATTERN, id)))
                     .willReturn(ResponseDefinitionBuilder.okForJson(new SchemaString(schema.toString()))));
-            log.debug("Registered schema {}", id);
+            log.info("Registered schema {}", id);
             return id;
         } catch (final IOException | RestClientException e) {
             throw new IllegalStateException("Internal error in mock schema registry client", e);
