@@ -416,7 +416,7 @@ public class TransformTest {
             // TODO: Allow only key schemas to be copied?
             log.info("applying transformation");
             ConnectException connectException = assertThrows(ConnectException.class, () -> smt.apply(record));
-            assertEquals("Transform failed. Record value does not have a byte[] schema.", connectException.getMessage());
+            assertEquals("Transform failed. Record value does not have a byte[] schema topic TransformTest.", connectException.getMessage());
 
             // In any case, we can still check the key schema was copied, and the destination now has some version
             destVersions = destClient.getAllVersions(subject);

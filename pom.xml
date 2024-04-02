@@ -4,7 +4,7 @@
 
     <groupId>com.fnz.kafka</groupId>
     <artifactId>schema-registry-transfer-smt</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.2</version>
     <name>schema-registry-transfer-smt</name>
     <description>
         A Kafka Connect Transform for copying Confluent Schema Registry schemas between different registries.
@@ -66,10 +66,10 @@
         <maven.compiler.target>1.8</maven.compiler.target>
 
         <slf4j.version>1.7.36</slf4j.version>
-        <kafka.version>3.6.1</kafka.version>
-        <confluent.version>5.1.0</confluent.version>
+        <kafka.version>3.7.0</kafka.version>
+        <confluent.version>7.6.0</confluent.version>
         <confluent.patch.version>-ccs</confluent.patch.version>
-        <jackson.version>2.13.5</jackson.version>
+        <jackson.version>2.17.0</jackson.version>
         <jackson.asl.version>1.9.13</jackson.asl.version>
 
         <spotless.version>1.20.0</spotless.version>
@@ -104,7 +104,7 @@
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
-            <version>3.8.3</version>
+            <version>3.9.2</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
@@ -160,7 +160,7 @@
         <dependency>
             <groupId>org.tukaani</groupId>
             <artifactId>xz</artifactId>
-            <version>1.5</version>
+            <version>1.9</version>
             <scope>provided</scope>
         </dependency>
 
@@ -174,7 +174,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
-            <version>1.8.1</version>
+            <version>1.26.1</version>
             <scope>provided</scope>
         </dependency>
 
@@ -211,7 +211,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.3.1</version>
+            <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
 
@@ -225,14 +225,14 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.2.3</version>
+            <version>1.5.3</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.github.tomakehurst</groupId>
-            <artifactId>wiremock</artifactId>
-            <version>2.20.0</version>
+    <groupId>org.wiremock</groupId>
+    <artifactId>wiremock</artifactId>
+            <version>3.5.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -255,7 +255,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>3.5.2</version>
                 <configuration>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
                     <filters>
