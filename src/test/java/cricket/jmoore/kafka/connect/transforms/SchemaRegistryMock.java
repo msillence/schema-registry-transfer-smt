@@ -172,7 +172,7 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
             // client upgrades appends ?fetchMaxId=false and then &subject= to the url
             this.stubFor.apply(WireMock.get(WireMock.urlMatching(String.format("%s%d[^0-9]*", SCHEMA_BY_ID_PATTERN, id)))
                     .willReturn(ResponseDefinitionBuilder.okForJson(new SchemaString(schema.toString()))));
-            log.info("Registered schema {}", id);
+            log.debug("Registered schema {}", id);
             return id;
         } catch (final IOException | RestClientException e) {
             throw new IllegalStateException("Internal error in mock schema registry client", e);
@@ -182,7 +182,8 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
     private List<Integer> listVersions(String subject) {
         log.debug("Listing all versions for subject {}", subject);
         try {
-            return this.schemaRegistryClient.getAllVersions(subject);
+        	 List<Integer> li = this.schemaRegistryClient.getAllVersions(subject);
+        	 return li;
         } catch (IOException | RestClientException e) {
             throw new IllegalStateException("Internal error in mock schema registry client", e);
         }
@@ -224,7 +225,7 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
         return "http://localhost:" + this.mockSchemaRegistry.port();
     }
 
-    private abstract class SubjectsVersioHandler implements ResponseDefinitionTransformerV2 {
+    private abstract class SubjectsVersionHandler implements ResponseDefinitionTransformerV2 {
         // Expected url pattern /subjects/.*-value/versions
         protected final Splitter urlSplitter = Splitter.on('/').omitEmptyStrings();
 
@@ -238,7 +239,7 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
         }
     }
 
-    private class AutoRegistrationHandler extends SubjectsVersioHandler {
+    private class AutoRegistrationHandler extends SubjectsVersionHandler {
 
         @Override
         public ResponseDefinition transform(ServeEvent serveEvent) {
@@ -261,7 +262,7 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
         }
     }
 
-    private class ListVersionsHandler extends SubjectsVersioHandler {
+    private class ListVersionsHandler extends SubjectsVersionHandler {
 
         @Override
         public ResponseDefinition transform(ServeEvent serveEvent) {
@@ -276,13 +277,21 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
             return ListVersionsHandler.class.getSimpleName();
         }
     }
+    
+    private String stripQuery(String url) {
+        int pos = url.indexOf('?');
+    	if (pos > 0) {
+    		return url.substring(0, pos);
+    	}
+    	return url;
+    }
 
-    private class GetVersionHandler extends SubjectsVersioHandler {
+    private class GetVersionHandler extends SubjectsVersionHandler {
 
         @Override
         public ResponseDefinition transform(ServeEvent serveEvent) {
         	final Request request = serveEvent.getRequest();
-            String versionStr = Iterables.get(this.urlSplitter.split(request.getUrl()), 3);
+            String versionStr = Iterables.get(this.urlSplitter.split(stripQuery(request.getUrl())), 3);
             SchemaMetadata metadata;
             if (versionStr.equals("latest")) {
                 metadata = SchemaRegistryMock.this.getSubjectVersion(getSubject(request), versionStr);
@@ -299,12 +308,12 @@ public class SchemaRegistryMock implements BeforeEachCallback, AfterEachCallback
         }
     }
 
-    private class GetConfigHandler extends SubjectsVersioHandler {
+    private class GetConfigHandler extends SubjectsVersionHandler {
 
         @Override
         protected String getSubject(Request request) {
             List<String> parts =
-                    StreamSupport.stream(this.urlSplitter.split(request.getUrl()).spliterator(), false)
+                    StreamSupport.stream(this.urlSplitter.split(stripQuery(request.getUrl())).spliterator(), false)
                             .collect(Collectors.toList());
 
             // return null when this is just /config

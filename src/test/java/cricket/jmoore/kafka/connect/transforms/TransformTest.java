@@ -18,8 +18,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.avro.SchemaBuilder;
@@ -385,6 +387,18 @@ public class TransformTest {
 
         assertThrows(ConnectException.class, () -> this.passSimpleMessage());
     }
+    
+    
+    public boolean containsInStack(Throwable e, String contains, Set<Throwable> s) {
+    	if (s.contains(e)) {
+    		return false;
+    	}
+    	s.add(e);
+    	if (e.getMessage().contains(contains)) {
+    		return true;
+    	}
+    	return containsInStack(e.getCause(), contains, s);
+    }
 
     @Test
     public void testKeySchemaTransfer() {
@@ -417,8 +431,9 @@ public class TransformTest {
 
             // check the destination has no versions for this subject
             SchemaRegistryClient destClient = destSchemaRegistry.getSchemaRegistryClient();
-            List<Integer> destVersions = destClient.getAllVersions(subject);
-            assertTrue(destVersions.isEmpty(), "the destination registry starts empty");
+            RestClientException notFoundException = assertThrows(RestClientException.class, () -> destClient.getAllVersions(subject));
+            assertTrue(containsInStack(notFoundException, "Subject Not Found; error code: 40401", new HashSet<Throwable>()), "the destination registry starts empty");
+//            assertTrue(destVersions.isEmpty(), "the destination registry starts empty");
 
             // The transform will fail on the byte[]-less record value.
             // TODO: Allow only key schemas to be copied?
@@ -427,7 +442,7 @@ public class TransformTest {
             assertEquals("Transform failed. Record value does not have a byte[] schema topic TransformTest.", connectException.getMessage());
 
             // In any case, we can still check the key schema was copied, and the destination now has some version
-            destVersions = destClient.getAllVersions(subject);
+            List<Integer> destVersions = destClient.getAllVersions(subject);
             assertEquals(numSourceVersions, destVersions.size(),
                     "source and destination registries have the same amount of schemas for the same subject");
 
@@ -484,9 +499,10 @@ public class TransformTest {
 
             // check the destination has no versions for this subject
             SchemaRegistryClient destClient = destSchemaRegistry.getSchemaRegistryClient();
-            List<Integer> destVersions = destClient.getAllVersions(subject);
-            assertTrue(destVersions.isEmpty(), "the destination registry starts empty");
-
+            
+            RestClientException notFoundException = assertThrows(RestClientException.class, () -> destClient.getAllVersions(subject));
+            assertTrue(containsInStack(notFoundException, "Subject Not Found; error code: 40401", new HashSet<Throwable>()), "the destination registry starts empty");
+            
             // The transform will pass for key and value with byte schemas
             log.info("applying transformation");
             appliedRecord = assertDoesNotThrow(() -> smt.apply(record));
@@ -496,7 +512,7 @@ public class TransformTest {
             assertEquals(record.valueSchema(), appliedRecord.valueSchema(), "value schema unchanged");
 
             // check the value schema was copied, and the destination now has some version
-            destVersions = destClient.getAllVersions(subject);
+            List<Integer> destVersions = destClient.getAllVersions(subject);
             assertEquals(numSourceVersions, destVersions.size(),
                     "source and destination registries have the same amount of schemas for the same subject");
 
@@ -576,10 +592,10 @@ public class TransformTest {
 
             // check the destination has no versions for this subject
             SchemaRegistryClient destClient = destSchemaRegistry.getSchemaRegistryClient();
-            List<Integer> destKeyVersions = destClient.getAllVersions(keySubject);
-            assertTrue(destKeyVersions.isEmpty(), "the destination registry starts empty");
-            List<Integer> destValueVersions = destClient.getAllVersions(valueSubject);
-            assertTrue(destValueVersions.isEmpty(), "the destination registry starts empty");
+            RestClientException notFoundKeyException = assertThrows(RestClientException.class, () -> destClient.getAllVersions(keySubject));
+            assertTrue(containsInStack(notFoundKeyException, "Subject Not Found; error code: 40401", new HashSet<Throwable>()), "the destination registry starts empty");
+            RestClientException notFoundValueException = assertThrows(RestClientException.class, () -> destClient.getAllVersions(valueSubject));
+            assertTrue(containsInStack(notFoundValueException, "Subject Not Found; error code: 40401", new HashSet<Throwable>()), "the destination registry starts empty");
 
             // The transform will pass for key and value with byte schemas
             log.info("applying transformation");
@@ -589,10 +605,10 @@ public class TransformTest {
             assertEquals(record.valueSchema(), appliedRecord.valueSchema(), "value schema unchanged");
 
             // check the value schema was copied, and the destination now has some version
-            destKeyVersions = destClient.getAllVersions(keySubject);
+            List<Integer> destKeyVersions = destClient.getAllVersions(keySubject);
             assertEquals(numSourceKeyVersions, destKeyVersions.size(),
                     "source and destination registries have the same amount of schemas for the key subject");
-            destValueVersions = destClient.getAllVersions(valueSubject);
+            List<Integer> destValueVersions = destClient.getAllVersions(valueSubject);
             assertEquals(numSourceValueVersions, destValueVersions.size(),
                     "source and destination registries have the same amount of schemas for the value subject");
 
@@ -707,15 +723,16 @@ public class TransformTest {
 
             // check the destination has no versions for this subject
             SchemaRegistryClient destClient = destSchemaRegistry.getSchemaRegistryClient();
-            List<Integer> destVersions = destClient.getAllVersions(subject);
-            assertTrue(destVersions.isEmpty(), "the destination registry starts empty");
+            
+            RestClientException notFoundException = assertThrows(RestClientException.class, () -> destClient.getAllVersions(subject));
+            assertTrue(containsInStack(notFoundException, "Subject Not Found; error code: 40401", new HashSet<Throwable>()), "the destination registry starts empty");
 
             // The transform will pass for key and value with byte schemas
             log.info("applying transformation");
             assertDoesNotThrow(() -> smt.apply(record));
 
             // check the value schema was copied, and the destination now has some version
-            destVersions = destClient.getAllVersions(subject);
+            List<Integer> destVersions = destClient.getAllVersions(subject);
             assertEquals(1, destVersions.size(),
                     "the destination registry has been updated with first schema");
 
