@@ -28,9 +28,11 @@ import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.confluent.kafka.schemaregistry.ParsedSchema;
+import io.confluent.kafka.schemaregistry.avro.AvroSchema;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
-import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.subject.TopicNameStrategy;
 import io.confluent.kafka.serializers.subject.strategy.SubjectNameStrategy;
 
@@ -49,17 +51,17 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 
 	public static final String SRC_PREAMBLE = "For source consumer's schema registry, ";
 	public static final String SRC_SCHEMA_REGISTRY_CONFIG_DOC = "A list of addresses for the Schema Registry to copy from. The consumer's Schema Registry.";
-	public static final String SRC_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DOC = SRC_PREAMBLE + AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DOC;
-	public static final String SRC_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DEFAULT = AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DEFAULT;
-	public static final String SRC_USER_INFO_CONFIG_DOC = SRC_PREAMBLE + AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DOC;
-	public static final String SRC_USER_INFO_CONFIG_DEFAULT = AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DEFAULT;
+	public static final String SRC_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DOC = SRC_PREAMBLE + AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DOC;
+	public static final String SRC_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DEFAULT = AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DEFAULT;
+	public static final String SRC_USER_INFO_CONFIG_DOC = SRC_PREAMBLE + AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DOC;
+	public static final String SRC_USER_INFO_CONFIG_DEFAULT = AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DEFAULT;
 
 	public static final String DEST_PREAMBLE = "For target producer's schema registry, ";
 	public static final String DEST_SCHEMA_REGISTRY_CONFIG_DOC = "A list of addresses for the Schema Registry to copy to. The producer's Schema Registry.";
-	public static final String DEST_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DOC = DEST_PREAMBLE + AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DOC;
-	public static final String DEST_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DEFAULT = AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DEFAULT;
-	public static final String DEST_USER_INFO_CONFIG_DOC = DEST_PREAMBLE + AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DOC;
-	public static final String DEST_USER_INFO_CONFIG_DEFAULT = AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DEFAULT;
+	public static final String DEST_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DOC = DEST_PREAMBLE + AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DOC;
+	public static final String DEST_BASIC_AUTH_CREDENTIALS_SOURCE_CONFIG_DEFAULT = AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE_DEFAULT;
+	public static final String DEST_USER_INFO_CONFIG_DOC = DEST_PREAMBLE + AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DOC;
+	public static final String DEST_USER_INFO_CONFIG_DEFAULT = AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_USER_INFO_DEFAULT;
 
 	public static final String TRANSFER_KEYS_CONFIG_DOC = "Whether or not to copy message key schemas between registries.";
 	public static final Boolean TRANSFER_KEYS_CONFIG_DEFAULT = true;
@@ -69,7 +71,7 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 
 	private CachedSchemaRegistryClient sourceSchemaRegistryClient;
 	private CachedSchemaRegistryClient destSchemaRegistryClient;
-	private SubjectNameStrategy<org.apache.avro.Schema> subjectNameStrategy;
+	private SubjectNameStrategy subjectNameStrategy;
 	private boolean transferKeys, includeHeaders;
 	private Set<Predicate<String>> ignoreTopics = new HashSet<>();
 
@@ -107,17 +109,17 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 
 		final List<String> sourceUrls = config.getList(ConfigName.SRC_SCHEMA_REGISTRY_URL);
 		final Map<String, String> sourceProps = new HashMap<>();
-		sourceProps.put(AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE,
+		sourceProps.put(AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE,
 				"SRC_" + config.getString(ConfigName.SRC_BASIC_AUTH_CREDENTIALS_SOURCE));
-		sourceProps.put(AbstractKafkaAvroSerDeConfig.USER_INFO_CONFIG,
+		sourceProps.put(AbstractKafkaSchemaSerDeConfig.USER_INFO_CONFIG,
 				config.getPassword(ConfigName.SRC_USER_INFO)
 				.value());
 
 		final List<String> destUrls = config.getList(ConfigName.DEST_SCHEMA_REGISTRY_URL);
 		final Map<String, String> destProps = new HashMap<>();
-		destProps.put(AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE,
+		destProps.put(AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE,
 				"DEST_" + config.getString(ConfigName.DEST_BASIC_AUTH_CREDENTIALS_SOURCE));
-		destProps.put(AbstractKafkaAvroSerDeConfig.USER_INFO_CONFIG,
+		destProps.put(AbstractKafkaSchemaSerDeConfig.USER_INFO_CONFIG,
 				config.getPassword(ConfigName.DEST_USER_INFO)
 				.value());
 
@@ -180,20 +182,20 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 					final byte[] keyAsBytes = (byte[]) key;
 					final int keyByteLength = keyAsBytes.length;
 					if (keyByteLength <= 5) {
-						throw new SerializationException("Unexpected byte[] length " + keyByteLength + " for Avro record key.");
+						throw new SerializationException(String.format("Unexpected byte[] length %d in topic %s for Avro record key.", keyByteLength, topic));
 					}
 					final ByteBuffer b = ByteBuffer.wrap(keyAsBytes);
 					destKeySchemaId = copySchema(b, topic, true);
 					b.putInt(1, destKeySchemaId.orElseThrow(()
-							-> new ConnectException("Transform failed. Unable to update record schema id. (isKey=true)")));
+							-> new ConnectException(String.format("Transform failed for topic %s. Unable to update record schema id. (isKey=true)", topic))));
 					updatedKey = b.array();
 				}
 			} else {
 				throw new ConnectException("Transform failed. Record key does not have a byte[] schema.");
 			}
 		} else {
-			log.trace("Skipping record key translation. {} has been to false. Keys will be passed as-is."
-					, ConfigName.TRANSFER_KEYS);
+			log.trace("Skipping record key translation. topic {} config {} has been to false. Keys will be passed as-is."
+					, topic, ConfigName.TRANSFER_KEYS);
 		}
 
 		// Transcribe the value's schema id
@@ -209,16 +211,16 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 				final byte[] valueAsBytes = (byte[]) value;
 				final int valueByteLength = valueAsBytes.length;
 				if (valueByteLength <= 5) {
-					throw new SerializationException("Unexpected byte[] length " + valueByteLength + " for Avro record value.");
+					throw new SerializationException(String.format("Unexpected byte[] in topic %s length %d for Avro record value.", topic, valueByteLength));
 				}
 				final ByteBuffer b = ByteBuffer.wrap(valueAsBytes);
 				destValueSchemaId = copySchema(b, topic, false);
 				b.putInt(1, destValueSchemaId.orElseThrow(()
-						-> new ConnectException("Transform failed. Unable to update record schema id. (isKey=false)")));
+						-> new ConnectException(String.format("Transform failed. Unable to update record schema id. (isKey=false) topic %s", topic))));
 				updatedValue = b.array();
 			}
 		} else {
-			throw new ConnectException("Transform failed. Record value does not have a byte[] schema.");
+			throw new ConnectException(String.format("Transform failed. Record value does not have a byte[] schema topic %s.", topic));
 		}
 
 
@@ -249,7 +251,8 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 				try {
 					log.trace("Looking up schema id {} in source registry", sourceSchemaId);
 					// Can't do getBySubjectAndId because that requires a Schema object for the strategy
-					schemaAndDestId.schema = sourceSchemaRegistryClient.getById(sourceSchemaId);
+					ParsedSchema schema = sourceSchemaRegistryClient.getSchemaById(sourceSchemaId);
+					schemaAndDestId.schema = schemaAndDestId.schema = schema instanceof AvroSchema ? ((AvroSchema) schema).rawSchema() : null;
 				} catch (IOException | RestClientException e) {
 					final String msg = e.getMessage();
 					log.warn("message was {}", msg);
@@ -257,20 +260,22 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 						log.warn("failed to find schema id {} in topic {}", sourceSchemaId, topic, e);
 						return Optional.empty();
 					} else {
-						log.error(String.format("Unable to fetch source schema for id %d.", sourceSchemaId), e);
-						throw new ConnectException(e);
+						String error = String.format("Unable to fetch source schema for id %d in topic %s", sourceSchemaId, topic);
+						log.error(error, e);
+						throw new ConnectException(error, e);
 					}
 				}
 
 				try {
 					log.trace("Registering schema {} to destination registry", schemaAndDestId.schema);
 					// It could be possible that the destination naming strategy is different from the source
-					final String subjectName = subjectNameStrategy.subjectName(topic, isKey, schemaAndDestId.schema);
-					schemaAndDestId.id = destSchemaRegistryClient.register(subjectName, schemaAndDestId.schema);
+					final AvroSchema avroSchema = new AvroSchema(schemaAndDestId.schema);
+					final String subjectName = subjectNameStrategy.subjectName(topic, isKey, avroSchema);
+					schemaAndDestId.id = destSchemaRegistryClient.register(subjectName, avroSchema);
 					schemaCache.put(sourceSchemaId, schemaAndDestId);
 				} catch (IOException | RestClientException e) {
-					log.error(String.format("Unable to register source schema id %d to destination registry.",
-							sourceSchemaId), e);
+					log.error(String.format("Unable to register source schema id %d for topic %s to destination registry.",
+							sourceSchemaId, topic), e);
 					return Optional.empty();
 				}
 			}
@@ -287,12 +292,12 @@ public class SchemaRegistryTransfer<R extends ConnectRecord<R>> implements Trans
 	}
 
 	interface ConfigName {
-		String SRC_SCHEMA_REGISTRY_URL = "src." + AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-		String SRC_BASIC_AUTH_CREDENTIALS_SOURCE = "src." + AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE;
-		String SRC_USER_INFO = "src." + AbstractKafkaAvroSerDeConfig.USER_INFO_CONFIG;
-		String DEST_SCHEMA_REGISTRY_URL = "dest." + AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-		String DEST_BASIC_AUTH_CREDENTIALS_SOURCE = "dest." + AbstractKafkaAvroSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE;
-		String DEST_USER_INFO = "dest." + AbstractKafkaAvroSerDeConfig.USER_INFO_CONFIG;
+		String SRC_SCHEMA_REGISTRY_URL = "src." + AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
+		String SRC_BASIC_AUTH_CREDENTIALS_SOURCE = "src." + AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE;
+		String SRC_USER_INFO = "src." + AbstractKafkaSchemaSerDeConfig.USER_INFO_CONFIG;
+		String DEST_SCHEMA_REGISTRY_URL = "dest." + AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
+		String DEST_BASIC_AUTH_CREDENTIALS_SOURCE = "dest." + AbstractKafkaSchemaSerDeConfig.BASIC_AUTH_CREDENTIALS_SOURCE;
+		String DEST_USER_INFO = "dest." + AbstractKafkaSchemaSerDeConfig.USER_INFO_CONFIG;
 		String SCHEMA_CAPACITY = "schema.capacity";
 		String TRANSFER_KEYS = "transfer.message.keys";
 		String INCLUDE_HEADERS = "include.message.headers";
